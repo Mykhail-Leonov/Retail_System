@@ -1,4 +1,4 @@
-
+from models import Category, Product, User, Staff, Manager
 
 
 def main():

@@ -3,9 +3,28 @@
 # Category class
 
 class Category:
+
     def __init__(self, category_id: int, name: str):
+
+        # Validate category info
+        if not isinstance(category_id, int) or category_id <= 0:
+            raise ValueError("Category ID must be a positive integer.")
+
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError("Category name cannot be empty.")
+
+        # Store category info
         self.__category_id = category_id
-        self.__name = name
+        self.__name = name.strip()
+
+    # Update category name
+    def update_name(self, name: str) -> None:
+
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError("Category name cannot be empty.")
+
+        self.__name = name.strip()
+
 
 
 
@@ -52,3 +71,55 @@ class Product:
 
         self.__name = name.strip()
         self.__price = float(price)
+
+
+
+# USER CLASS
+
+
+class User:
+
+    def __init__(self, user_id: int, name: str):
+
+        # Validate user info
+        if not isinstance(user_id, int) or user_id <= 0:
+            raise ValueError("User ID must be a positive number.")
+
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError("User name cannot be empty.")
+
+        # Store user info
+        self.__user_id = user_id
+        self.__name = name.strip()
+
+    # Return the user role
+    def get_role(self) -> str:
+        return "User"
+
+    # Check inventory management permission
+    def can_manage_inventory(self) -> bool:
+        return False
+
+
+
+# STAFF CLASS
+
+
+class Staff(User):
+
+    def get_role(self) -> str:
+        return "Staff"
+
+    def can_manage_inventory(self) -> bool:
+        return False
+
+
+# MANAGER CLASS
+
+class Manager(User):
+
+    def get_role(self) -> str:
+        return "Manager"
+
+    def can_manage_inventory(self) -> bool:
+        return True
