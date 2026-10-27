@@ -17,6 +17,9 @@ class Category:
         self.__category_id = category_id
         self.__name = name.strip()
 
+    def get_id(self) -> int:
+        return self.__category_id
+
     # Update category name
     def update_name(self, name: str) -> None:
 
@@ -56,6 +59,14 @@ class Product:
         self.__price = float(price)
         self.__category = category
 
+    # Return product ID
+    def get_id(self) -> int:
+        return self.__product_id
+
+    # Return product category
+    def get_category(self) -> Category:
+        return self.__category
+
     # Return price
     def get_price(self) -> float:
         return self.__price
@@ -73,9 +84,7 @@ class Product:
         self.__price = float(price)
 
 
-
-# USER CLASS
-
+# User class
 
 class User:
 
@@ -101,9 +110,7 @@ class User:
         return False
 
 
-
-# STAFF CLASS
-
+# Staff class
 
 class Staff(User):
 
@@ -114,7 +121,7 @@ class Staff(User):
         return False
 
 
-# MANAGER CLASS
+# Manager class
 
 class Manager(User):
 

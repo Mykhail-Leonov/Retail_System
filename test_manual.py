@@ -1,5 +1,6 @@
 
 from models import Category, Product, User, Staff, Manager
+from inventory import Inventory
 
 
 def main():
@@ -87,6 +88,99 @@ def main():
 
     except ValueError as error:
         print("Validation error:", error)
+
+
+    # TEST 7: CREATE INVENTORY
+
+    print("\nTEST 7: Create Inventory")
+    print("------------------------")
+
+    inventory = Inventory()
+    inventory.add_category(category)
+
+    print("Inventory and category added successfully.")
+
+
+    # TEST 8: ADD PRODUCT
+
+    print("\nTEST 8: Add Product")
+    print("-------------------")
+
+    inventory.add_product(product, 10)
+
+    assert inventory.get_stock(101) == 10
+    print("Product added with 10 units in stock.")
+
+
+    # TEST 9: DECREASE STOCK
+
+    print("\nTEST 9: Decrease Stock")
+    print("----------------------")
+
+    inventory.update_stock(101, -3)
+
+    assert inventory.get_stock(101) == 7
+    print("Remaining stock:", inventory.get_stock(101))
+
+
+    # TEST 10: INCREASE STOCK
+
+    print("\nTEST 10: Increase Stock")
+    print("-----------------------")
+
+    inventory.update_stock(101, 5)
+
+    assert inventory.get_stock(101) == 12
+    print("Updated stock:", inventory.get_stock(101))
+
+
+    # TEST 11: INVALID STOCK
+
+    print("\nTEST 11: Invalid Stock")
+    print("----------------------")
+
+    try:
+        inventory.update_stock(101, -20)
+
+    except ValueError as error:
+        print("Validation error:", error)
+
+    else:
+        raise AssertionError("Invalid stock change was accepted.")
+
+    assert inventory.get_stock(101) == 12
+
+
+    # TEST 12: DUPLICATE PRODUCT
+
+    print("\nTEST 12: Duplicate Product")
+    print("--------------------------")
+
+    try:
+        duplicate = Product(101, "Keyboard", 39.99, category)
+        inventory.add_product(duplicate, 5)
+
+    except ValueError as error:
+        print("Validation error:", error)
+
+    else:
+        raise AssertionError("Duplicate product was accepted.")
+
+
+    # TEST 13: MISSING PRODUCT
+
+    print("\nTEST 13: Missing Product")
+    print("------------------------")
+
+    try:
+        inventory.get_stock(999)
+
+    except KeyError as error:
+        print("Validation error:", error)
+
+    else:
+        raise AssertionError("Missing product was accepted.")
+
 
     print("\nTesting completed.")
 
