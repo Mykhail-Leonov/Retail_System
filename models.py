@@ -67,6 +67,12 @@ class Product:
     def get_category(self) -> Category:
         return self.__category
 
+    
+    # Return product name
+    def get_name(self) -> str:
+        return self.__name
+
+
     # Return price
     def get_price(self) -> float:
         return self.__price

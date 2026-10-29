@@ -1,6 +1,6 @@
 
 from models import Product, Category
-
+from typing import List
 
 # Inventory class
 
@@ -16,7 +16,7 @@ class Inventory:
         self.__categories = []
         self.__stock = {}
 
-        
+        # Low-stock notifications will be added later
         self.__low_stock_limit = low_stock_limit
         self.__observers = []
 
@@ -75,3 +75,81 @@ class Inventory:
             raise ValueError("Not enough stock available.")
 
         self.__stock[product_id] = new_stock
+
+    # Remove a category if no products use it
+    def remove_category(self, category_id: int) -> None:
+
+        for product in self.__products:
+            if product.get_category().get_id() == category_id:
+                raise ValueError("Cannot remove a category that has products.")
+
+        for category in self.__categories:
+            if category.get_id() == category_id:
+                self.__categories.remove(category)
+                return
+
+        raise KeyError("Category not found.")
+
+    # Update product name and price
+    def update_product(self, product_id: int, name: str, price: float) -> None:
+
+        for product in self.__products:
+            if product.get_id() == product_id:
+                product.update_details(name, price)
+                return
+
+        raise KeyError("Product not found in inventory.")
+
+    # Remove a product and its stock record
+    def remove_product(self, product_id: int) -> None:
+
+        for product in self.__products:
+            if product.get_id() == product_id:
+                self.__products.remove(product)
+                del self.__stock[product_id]
+                return
+
+        raise KeyError("Product not found in inventory.")
+
+    # Search products by name
+    def search_product(self, name: str) -> List[Product]:
+
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError("Search name cannot be empty.")
+
+        matches = []
+
+        for product in self.__products:
+            if name.strip().lower() in product.get_name().lower():
+                matches.append(product)
+
+        return matches
+
+    # Find products at or below low-stock limit
+    def get_low_stock(self) -> List[Product]:
+
+        low_stock_products = []
+
+        for product in self.__products:
+            if self.get_stock(product.get_id()) <= self.__low_stock_limit:
+                low_stock_products.append(product)
+
+        return low_stock_products
+
+    # Generate a simple report
+    def inventory_report(self) -> str:
+
+        report = "INVENTORY REPORT\n----------------\n"
+
+        if not self.__products:
+            return report + "No products in inventory."
+
+        for product in self.__products:
+            report += (
+                f"ID: {product.get_id()} | "
+                f"Name: {product.get_name()} | "
+                f"Price: {product.get_price():.2f} | "
+                f"Stock: {self.get_stock(product.get_id())}\n"
+            )
+
+        return report.rstrip()
