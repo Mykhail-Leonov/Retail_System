@@ -136,3 +136,20 @@ class Manager(User):
 
     def can_manage_inventory(self) -> bool:
         return True
+
+
+# Customer class
+
+class Customer:
+
+    def __init__(self, customer_id: int, name: str):
+
+        if not isinstance(customer_id, int) or customer_id <= 0:
+            raise ValueError("Customer ID must be a positive integer.")
+
+        if not isinstance(name, str) or not name.strip():
+            raise ValueError("Customer name cannot be empty.")
+
+        self.__customer_id = customer_id
+        self.__name = name.strip()
+

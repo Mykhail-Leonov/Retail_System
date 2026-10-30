@@ -1,6 +1,7 @@
 
-from models import Category, Product, User, Staff, Manager
+from models import Category, Product, User, Staff, Manager, Customer
 from inventory import Inventory
+from sales import SaleItem, SalesTransaction
 
 
 def main():
@@ -318,8 +319,126 @@ def main():
     assert product.get_name() == "Gaming Mouse Pro"
     assert product.get_price() == 29.99
 
+    # TEST 23: CREATE CUSTOMER
+
+    print("\nTEST 23: Create Customer")
+    print("------------------------")
+
+    customer = Customer(1, "Jordan")
+    assert isinstance(customer, Customer)
+    print("Customer created successfully.")
+
+
+    # TEST 24: SALE ITEM CALCULATION
+
+    print("\nTEST 24: Sale Item")
+    print("------------------")
+
+    sale_item = SaleItem(product, 2)
+
+    assert round(sale_item.line_total(), 2) == 59.98
+    print("Line total:", round(sale_item.line_total(), 2))
+
+
+    # TEST 25: CREATE TRANSACTION
+
+    print("\nTEST 25: Create Transaction")
+    print("---------------------------")
+
+    transaction = SalesTransaction(1001, customer, staff)
+    assert isinstance(transaction, SalesTransaction)
+    print("Transaction created successfully.")
+
+
+    # TEST 26: ADD ITEM AND CALCULATE TOTAL
+
+    print("\nTEST 26: Transaction Total")
+    print("--------------------------")
+
+    transaction.add_item(product, 2)
+
+    assert round(transaction.calculate_total(), 2) == 59.98
+    print("Transaction total:", round(transaction.calculate_total(), 2))
+
+
+    # TEST 27: MULTIPLE PRODUCTS
+
+    print("\nTEST 27: Multiple Products")
+    print("--------------------------")
+
+    mouse_pad = Product(103, "Mouse Pad", 4.99, category)
+    inventory.add_product(mouse_pad, 8)
+    transaction.add_item(mouse_pad, 3)
+
+    assert round(transaction.calculate_total(), 2) == 74.95
+    assert inventory.get_stock(101) == 12
+    assert inventory.get_stock(103) == 8
+    print("Total for two products:", round(transaction.calculate_total(), 2))
+    print("Stock unchanged until sale is recorded.")
+
+
+    # TEST 28: INVALID SALE QUANTITY
+
+    print("\nTEST 28: Invalid Sale Quantity")
+    print("------------------------------")
+
+    try:
+        transaction.add_item(product, 0)
+
+    except ValueError as error:
+        print("Validation error:", error)
+
+    else:
+        raise AssertionError("Invalid quantity was accepted.")
+
+    assert round(transaction.calculate_total(), 2) == 74.95
+
+
+    # TEST 29: INVALID CUSTOMER NAME
+
+    print("\nTEST 29: Invalid Customer")
+    print("-------------------------")
+
+    try:
+        Customer(2, "")
+
+    except ValueError as error:
+        print("Validation error:", error)
+
+    else:
+        raise AssertionError("Invalid customer was accepted.")
+
+
+    # TEST 30: INVALID TRANSACTION CUSTOMER
+
+    print("\nTEST 30: Invalid Transaction")
+    print("----------------------------")
+
+    try:
+        SalesTransaction(1002, "Jordan", staff)
+
+    except TypeError as error:
+        print("Validation error:", error)
+
+    else:
+        raise AssertionError("Invalid transaction was accepted.")
+
+
+    # TEST 31: ORIGINAL SALE PRICE
+
+    print("\nTEST 31: Original Sale Price")
+    print("----------------------------")
+
+    temporary_product = Product(104, "Webcam", 20.00, category)
+    saved_item = SaleItem(temporary_product, 2)
+    temporary_product.update_details("Webcam", 30.00)
+
+    assert saved_item.line_total() == 40.00
+    print("Original line total:", saved_item.line_total())
+
     print("\nTesting completed.")
 
 
 if __name__ == "__main__":
     main()
+
