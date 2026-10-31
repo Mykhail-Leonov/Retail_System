@@ -1,7 +1,7 @@
 
 from models import Category, Product, User, Staff, Manager, Customer
 from inventory import Inventory
-from sales import SaleItem, SalesTransaction
+from sales import SaleItem, SalesTransaction, SalesManager
 
 
 def main():
@@ -435,6 +435,182 @@ def main():
 
     assert saved_item.line_total() == 40.00
     print("Original line total:", saved_item.line_total())
+
+    # TEST 32: CREATE SALES MANAGER
+
+    print("\nTEST 32: Create Sales Manager")
+    print("-----------------------------")
+
+    sales_manager = SalesManager(inventory)
+    print("Sales manager created successfully.")
+
+
+    # TEST 33: RECORD SALE AND UPDATE STOCK
+
+    print("\nTEST 33: Record Sale")
+    print("--------------------")
+
+    sales_manager.record_sale(transaction)
+
+    assert inventory.get_stock(101) == 10
+    assert inventory.get_stock(103) == 5
+    assert sales_manager.get_sales_data(101) == [2]
+    assert sales_manager.get_sales_data(103) == [3]
+    print("Mouse stock:", inventory.get_stock(101))
+    print("Mouse Pad stock:", inventory.get_stock(103))
+
+
+    # TEST 34: DUPLICATE TRANSACTION ID
+
+    print("\nTEST 34: Duplicate Transaction")
+    print("------------------------------")
+
+    duplicate_sale = SalesTransaction(1001, customer, staff)
+    duplicate_sale.add_item(product, 1)
+
+    try:
+        sales_manager.record_sale(duplicate_sale)
+    except ValueError as error:
+        print("Validation error:", error)
+    else:
+        raise AssertionError("Duplicate transaction was accepted.")
+
+    assert inventory.get_stock(101) == 10
+
+
+    # TEST 35: CANNOT RECORD OR EDIT A RECORDED SALE
+
+    print("\nTEST 35: Recorded Sale Protection")
+    print("---------------------------------")
+
+    try:
+        sales_manager.record_sale(transaction)
+    except ValueError as error:
+        print("Validation error:", error)
+    else:
+        raise AssertionError("Recorded sale was accepted again.")
+
+    try:
+        transaction.add_item(product, 1)
+    except ValueError as error:
+        print("Validation error:", error)
+    else:
+        raise AssertionError("Recorded sale was changed.")
+
+    assert inventory.get_stock(101) == 10
+
+
+    # TEST 36: NOT ENOUGH STOCK
+
+    print("\nTEST 36: Insufficient Stock")
+    print("---------------------------")
+
+    too_large_sale = SalesTransaction(1002, customer, staff)
+    too_large_sale.add_item(product, 11)
+
+    try:
+        sales_manager.record_sale(too_large_sale)
+    except ValueError as error:
+        print("Validation error:", error)
+    else:
+        raise AssertionError("Sale exceeded available stock.")
+
+    assert inventory.get_stock(101) == 10
+
+
+    # TEST 37: CHECK ALL STOCK BEFORE SELLING
+
+    print("\nTEST 37: Multiple Product Stock Check")
+    print("------------------------------------")
+
+    mixed_sale = SalesTransaction(1003, customer, staff)
+    mixed_sale.add_item(product, 2)
+    mixed_sale.add_item(mouse_pad, 6)
+
+    try:
+        sales_manager.record_sale(mixed_sale)
+    except ValueError as error:
+        print("Validation error:", error)
+    else:
+        raise AssertionError("Sale with insufficient stock was accepted.")
+
+    assert inventory.get_stock(101) == 10
+    assert inventory.get_stock(103) == 5
+    print("Both stock quantities are unchanged.")
+
+
+    # TEST 38: MISSING INVENTORY PRODUCT
+
+    print("\nTEST 38: Missing Sale Product")
+    print("-----------------------------")
+
+    unknown_product = Product(999, "Unknown Product", 5.00, category)
+    missing_sale = SalesTransaction(1004, customer, staff)
+    missing_sale.add_item(unknown_product, 1)
+
+    try:
+        sales_manager.record_sale(missing_sale)
+    except KeyError as error:
+        print("Validation error:", error)
+    else:
+        raise AssertionError("Sale with missing product was accepted.")
+
+    assert inventory.get_stock(101) == 10
+
+
+    # TEST 39: EMPTY SALE
+
+    print("\nTEST 39: Empty Sale")
+    print("-------------------")
+
+    empty_sale = SalesTransaction(1005, customer, staff)
+
+    try:
+        sales_manager.record_sale(empty_sale)
+    except ValueError as error:
+        print("Validation error:", error)
+    else:
+        raise AssertionError("Empty sale was accepted.")
+
+
+    # TEST 40: REPEATED PRODUCT QUANTITIES
+
+    print("\nTEST 40: Repeated Product")
+    print("-------------------------")
+
+    repeated_sale = SalesTransaction(1006, customer, staff)
+    repeated_sale.add_item(product, 6)
+    repeated_sale.add_item(product, 6)
+
+    try:
+        sales_manager.record_sale(repeated_sale)
+    except ValueError as error:
+        print("Validation error:", error)
+    else:
+        raise AssertionError("Combined quantities exceeded stock.")
+
+    assert inventory.get_stock(101) == 10
+
+
+    # TEST 41: SECOND SUCCESSFUL SALE AND HISTORY
+
+    print("\nTEST 41: Sales History")
+    print("----------------------")
+
+    second_sale = SalesTransaction(1007, customer, manager)
+    second_sale.add_item(product, 1)
+    second_sale.add_item(mouse_pad, 2)
+
+    sales_manager.record_sale(second_sale)
+
+    assert inventory.get_stock(101) == 9
+    assert inventory.get_stock(103) == 3
+    assert sales_manager.get_sales_data(101) == [2, 1]
+    assert sales_manager.get_sales_data(103) == [3, 2]
+    assert sales_manager.get_sales_data(999) == []
+    print("Mouse sales history:", sales_manager.get_sales_data(101))
+    print("Mouse Pad sales history:", sales_manager.get_sales_data(103))
+    print("Stock after second sale:", inventory.get_stock(101), inventory.get_stock(103))
 
     print("\nTesting completed.")
 
