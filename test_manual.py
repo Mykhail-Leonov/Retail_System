@@ -1,7 +1,7 @@
 
 from models import Category, Product, User, Staff, Manager, Customer
 from inventory import Inventory
-from sales import SaleItem, SalesTransaction, SalesManager
+from sales import SaleItem, SalesTransaction, SalesManager, InStoreSale, OnlineSale, SalesFactory
 
 
 def main():
@@ -611,6 +611,150 @@ def main():
     print("Mouse sales history:", sales_manager.get_sales_data(101))
     print("Mouse Pad sales history:", sales_manager.get_sales_data(103))
     print("Stock after second sale:", inventory.get_stock(101), inventory.get_stock(103))
+
+    # TEST 42: CREATE IN-STORE SALE USING FACTORY
+
+    print("\nTEST 42: In-Store Sale Factory")
+    print("------------------------------")
+
+    in_store_sale = SalesFactory.create_sale("in_store", 1008, customer, staff)
+
+    assert isinstance(in_store_sale, InStoreSale)
+    assert isinstance(in_store_sale, SalesTransaction)
+    assert in_store_sale.get_channel() == "In-Store"
+    print("Created:", in_store_sale.get_channel())
+
+
+    # TEST 43: CREATE ONLINE SALE USING FACTORY
+
+    print("\nTEST 43: Online Sale Factory")
+    print("----------------------------")
+
+    online_sale = SalesFactory.create_sale("online", 1009, customer, staff)
+
+    assert isinstance(online_sale, OnlineSale)
+    assert isinstance(online_sale, SalesTransaction)
+    assert online_sale.get_channel() == "Online"
+    print("Created:", online_sale.get_channel())
+
+
+    # TEST 44: POLYMORPHISM
+
+    print("\nTEST 44: Sale Channels")
+    print("----------------------")
+
+    sales = [in_store_sale, online_sale]
+
+    for sale in sales:
+        print("Sale channel:", sale.get_channel())
+
+    assert [sale.get_channel() for sale in sales] == ["In-Store", "Online"]
+    assert transaction.get_channel() == "Unspecified"
+
+
+    # TEST 45: IN-STORE SALE UPDATES SHARED INVENTORY
+
+    print("\nTEST 45: Record In-Store Sale")
+    print("-----------------------------")
+
+    in_store_sale.add_item(product, 1)
+    sales_manager.record_sale(in_store_sale)
+
+    assert inventory.get_stock(101) == 8
+    assert sales_manager.get_sales_data(101) == [2, 1, 1]
+    print("Mouse stock after in-store sale:", inventory.get_stock(101))
+
+
+    # TEST 46: ONLINE SALE UPDATES THE SAME INVENTORY
+
+    print("\nTEST 46: Record Online Sale")
+    print("---------------------------")
+
+    online_sale.add_item(product, 2)
+    online_sale.add_item(mouse_pad, 1)
+    sales_manager.record_sale(online_sale)
+
+    assert inventory.get_stock(101) == 6
+    assert inventory.get_stock(103) == 2
+    assert sales_manager.get_sales_data(101) == [2, 1, 1, 2]
+    assert sales_manager.get_sales_data(103) == [3, 2, 1]
+    print("Mouse stock after online sale:", inventory.get_stock(101))
+    print("Mouse Pad stock after online sale:", inventory.get_stock(103))
+    print("Combined mouse sales history:", sales_manager.get_sales_data(101))
+
+
+    # TEST 47: INVALID SALE TYPE
+
+    print("\nTEST 47: Invalid Sale Type")
+    print("--------------------------")
+
+    try:
+        SalesFactory.create_sale("phone", 1010, customer, staff)
+
+    except ValueError as error:
+        print("Validation error:", error)
+
+    else:
+        raise AssertionError("Invalid sale type was accepted.")
+
+
+    # TEST 48: INVALID ONLINE SALE QUANTITY
+
+    print("\nTEST 48: Invalid Online Quantity")
+    print("--------------------------------")
+
+    invalid_online_sale = SalesFactory.create_sale("online", 1011, customer, staff)
+
+    try:
+        invalid_online_sale.add_item(product, 0)
+
+    except ValueError as error:
+        print("Validation error:", error)
+
+    else:
+        raise AssertionError("Invalid online quantity was accepted.")
+
+
+    # TEST 49: ONLINE SALE CANNOT EXCEED STOCK
+
+    print("\nTEST 49: Online Stock Validation")
+    print("--------------------------------")
+
+    too_large_online_sale = SalesFactory.create_sale("online", 1012, customer, staff)
+    too_large_online_sale.add_item(product, 7)
+
+    try:
+        sales_manager.record_sale(too_large_online_sale)
+
+    except ValueError as error:
+        print("Validation error:", error)
+
+    else:
+        raise AssertionError("Online sale exceeded stock.")
+
+    assert inventory.get_stock(101) == 6
+    assert sales_manager.get_sales_data(101) == [2, 1, 1, 2]
+
+
+    # TEST 50: DUPLICATE ID ACROSS SALES CHANNELS
+
+    print("\nTEST 50: Duplicate Sale Across Channels")
+    print("----------------------------------------")
+
+    duplicate_online_sale = SalesFactory.create_sale("online", 1008, customer, staff)
+    duplicate_online_sale.add_item(product, 1)
+
+    try:
+        sales_manager.record_sale(duplicate_online_sale)
+
+    except ValueError as error:
+        print("Validation error:", error)
+
+    else:
+        raise AssertionError("Duplicate transaction ID across channels accepted.")
+
+    assert inventory.get_stock(101) == 6
+    assert inventory.get_stock(103) == 2
 
     print("\nTesting completed.")
 

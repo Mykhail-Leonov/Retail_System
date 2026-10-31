@@ -58,6 +58,10 @@ class SalesTransaction:
     def get_id(self) -> int:
         return self.__transaction_id
 
+    # Identify the type of transaction
+    def get_channel(self) -> str:
+        return "Unspecified"
+
     # Return a copy of the sale items list
     def get_items(self) -> List[SaleItem]:
         return self.__items.copy()
@@ -86,6 +90,41 @@ class SalesTransaction:
             total += item.line_total()
 
         return total
+
+
+# Sale recorded in a physical store
+class InStoreSale(SalesTransaction):
+
+    def get_channel(self) -> str:
+        return "In-Store"
+
+
+# Sale recorded through the online store
+class OnlineSale(SalesTransaction):
+
+    def get_channel(self) -> str:
+        return "Online"
+
+
+# Factory creates the appropriate type of sale
+class SalesFactory:
+
+    @staticmethod
+    def create_sale(sale_type: str, transaction_id: int,
+                    customer: Customer, user: User) -> SalesTransaction:
+
+        if not isinstance(sale_type, str):
+            raise ValueError("Sale type must be 'in_store' or 'online'.")
+
+        sale_type = sale_type.strip().lower()
+
+        if sale_type == "in_store":
+            return InStoreSale(transaction_id, customer, user)
+
+        if sale_type == "online":
+            return OnlineSale(transaction_id, customer, user)
+
+        raise ValueError("Sale type must be 'in_store' or 'online'.")
 
 
 # Manage sales history and shared inventory
