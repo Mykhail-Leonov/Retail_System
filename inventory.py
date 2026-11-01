@@ -1,6 +1,7 @@
 
 from models import Product, Category
 from typing import List
+from observers import StockObserver
 
 # Inventory class
 
@@ -16,7 +17,7 @@ class Inventory:
         self.__categories = []
         self.__stock = {}
 
-        # Low-stock notifications will be added later
+        # Low-stock notification settings
         self.__low_stock_limit = low_stock_limit
         self.__observers = []
 
@@ -75,6 +76,28 @@ class Inventory:
             raise ValueError("Not enough stock available.")
 
         self.__stock[product_id] = new_stock
+
+        # Notify observers when stock gets to the low-stock range
+        if change < 0 and current_stock > self.__low_stock_limit and new_stock <= self.__low_stock_limit:
+            for product in self.__products:
+                if product.get_id() == product_id:
+                    self.notify_observers(product)
+                    break
+
+    # Attach an observer to receive low stock alerts
+    def attach(self, observer: StockObserver) -> None:
+
+        if not isinstance(observer, StockObserver):
+            raise TypeError("A valid StockObserver is required.")
+
+        if observer not in self.__observers:
+            self.__observers.append(observer)
+
+    # Tell all registered observers which product is low stock
+    def notify_observers(self, product: Product) -> None:
+
+        for observer in self.__observers:
+            observer.update(product)
 
     # Remove a category if no products use it
     def remove_category(self, category_id: int) -> None:

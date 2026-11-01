@@ -2,6 +2,9 @@
 from models import Category, Product, User, Staff, Manager, Customer
 from inventory import Inventory
 from sales import SaleItem, SalesTransaction, SalesManager, InStoreSale, OnlineSale, SalesFactory
+from observers import LowStockNotifier
+from io import StringIO
+from contextlib import redirect_stdout
 
 
 def main():
@@ -755,6 +758,130 @@ def main():
 
     assert inventory.get_stock(101) == 6
     assert inventory.get_stock(103) == 2
+
+    # TEST 51: REGISTER A LOW-STOCK OBSERVER
+
+    print("\nTEST 51: Attach Stock Observer")
+    print("------------------------------")
+
+    alert_inventory = Inventory(low_stock_limit=5)
+    alert_inventory.add_category(category)
+    alert_product = Product(201, "USB Hub", 14.99, category)
+    alert_inventory.add_product(alert_product, 7)
+
+    notifier = LowStockNotifier()
+    alert_inventory.attach(notifier)
+    alert_inventory.attach(notifier)  # Registering the same observer twice has no effect
+    print("Low-stock observer attached successfully.")
+
+
+    # TEST 52: NO ALERT ABOVE THE LOW-STOCK LIMIT
+
+    print("\nTEST 52: Stock Above Limit")
+    print("--------------------------")
+
+    output = StringIO()
+    with redirect_stdout(output):
+        alert_inventory.update_stock(201, -1)
+
+    assert alert_inventory.get_stock(201) == 6
+    assert output.getvalue() == ""
+    print("Stock is 6: no alert sent.")
+
+
+    # TEST 53: ALERT WHEN STOCK REACHES THE LIMIT
+
+    print("\nTEST 53: Low-Stock Alert")
+    print("------------------------")
+
+    output = StringIO()
+    with redirect_stdout(output):
+        alert_inventory.update_stock(201, -1)
+
+    assert alert_inventory.get_stock(201) == 5
+    assert output.getvalue().count("LOW STOCK ALERT") == 1
+    assert "USB Hub (ID: 201)" in output.getvalue()
+    print(output.getvalue().strip())
+
+
+    # TEST 54: NO REPEATED ALERT WHILE STOCK REMAINS LOW
+
+    print("\nTEST 54: No Repeated Alert")
+    print("--------------------------")
+
+    output = StringIO()
+    with redirect_stdout(output):
+        alert_inventory.update_stock(201, -1)
+
+    assert alert_inventory.get_stock(201) == 4
+    assert output.getvalue() == ""
+    assert alert_product in alert_inventory.get_low_stock()
+    print("Stock is 4: no duplicate alert sent.")
+
+
+    # TEST 55: ALERT AGAIN AFTER RESTOCKING
+
+    print("\nTEST 55: Alert After Restocking")
+    print("--------------------------------")
+
+    output = StringIO()
+    with redirect_stdout(output):
+        alert_inventory.update_stock(201, 4)  # 4 to 8
+        alert_inventory.update_stock(201, -3)  # 8 to 5
+
+    assert alert_inventory.get_stock(201) == 5
+    assert output.getvalue().count("LOW STOCK ALERT") == 1
+    print(output.getvalue().strip())
+
+
+    # TEST 56: REJECT INVALID OBSERVER
+
+    print("\nTEST 56: Invalid Observer")
+    print("-------------------------")
+
+    try:
+        alert_inventory.attach("not an observer")
+    except TypeError as error:
+        print("Validation error:", error)
+    else:
+        raise AssertionError("Invalid observer was accepted.")
+
+
+    # TEST 57: ONLINE SALE AUTOMATICALLY TRIGGERS ALERT
+
+    print("\nTEST 57: Sale Triggers Low-Stock Alert")
+    print("--------------------------------------")
+
+    inventory.attach(LowStockNotifier())
+    notification_sale = SalesFactory.create_sale("online", 1013, customer, staff)
+    notification_sale.add_item(product, 1)
+
+    output = StringIO()
+    with redirect_stdout(output):
+        sales_manager.record_sale(notification_sale)
+
+    assert inventory.get_stock(101) == 5
+    assert sales_manager.get_sales_data(101) == [2, 1, 1, 2, 1]
+    assert "Gaming Mouse Pro (ID: 101)" in output.getvalue()
+    assert output.getvalue().count("LOW STOCK ALERT") == 1
+    print(output.getvalue().strip())
+    print("Mouse stock after sale:", inventory.get_stock(101))
+
+
+    # TEST 58: MULTIPLE OBSERVERS RECEIVE NOTIFICATIONS
+
+    print("\nTEST 58: Multiple Observers")
+    print("---------------------------")
+
+    alert_inventory.attach(LowStockNotifier())
+    output = StringIO()
+    with redirect_stdout(output):
+        alert_inventory.update_stock(201, 2)  # 5 to 7
+        alert_inventory.update_stock(201, -2)  # 7 to 5
+
+    assert output.getvalue().count("LOW STOCK ALERT") == 2
+    print("Both registered observers received the alert.")
+
 
     print("\nTesting completed.")
 
