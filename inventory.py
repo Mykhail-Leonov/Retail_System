@@ -34,6 +34,15 @@ class Inventory:
 
         self.__categories.append(category)
 
+    
+    # Find a category using its ID
+    def get_category(self, category_id: int) -> Category:
+        for category in self.__categories:
+            if category.get_id() == category_id:
+                return category
+        raise KeyError("Category not found.")
+
+
     # Add a product with its starting stock quantity
     def add_product(self, product: Product, quantity: int) -> None:
 
@@ -54,6 +63,15 @@ class Inventory:
 
         self.__products.append(product)
         self.__stock[product.get_id()] = quantity
+
+    
+    # Find a product using its ID
+    def get_product(self, product_id: int) -> Product:
+        for product in self.__products:
+            if product.get_id() == product_id:
+                return product
+        raise KeyError("Product not found in inventory.")
+
 
     # Return stock quantity for a product
     def get_stock(self, product_id: int) -> int:
