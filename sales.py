@@ -58,6 +58,10 @@ class SalesTransaction:
     def get_id(self) -> int:
         return self.__transaction_id
 
+    # Return the date of the transaction
+    def get_date(self) -> datetime:
+        return self.__date
+
     # Identify the type of transaction
     def get_channel(self) -> str:
         return "Unspecified"
@@ -186,3 +190,35 @@ class SalesManager:
                 quantities.append(total_quantity)
 
         return quantities
+
+    # Generate a combined report of recorded sales
+    def sales_report(self) -> str:
+        report = "SALES REPORT\n------------\n"
+
+        if not self.__transactions:
+            return report + "No sales recorded."
+
+        total_revenue = 0.0
+        total_units = 0
+
+        for transaction in self.__transactions:
+            sale_total = transaction.calculate_total()
+            total_revenue += sale_total
+
+            for item in transaction.get_items():
+                total_units += item.get_quantity()
+
+            report += (
+                f"ID: {transaction.get_id()} | "
+                f"Date: {transaction.get_date().strftime('%Y-%m-%d')} | "
+                f"Channel: {transaction.get_channel()} | "
+                f"Total: {sale_total:.2f}\n"
+            )
+
+        report += (
+            f"\nTotal transactions: {len(self.__transactions)}\n"
+            f"Total units sold: {total_units}\n"
+            f"Total revenue: {total_revenue:.2f}"
+        )
+
+        return report

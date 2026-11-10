@@ -1,3 +1,4 @@
+
 from models import Category, Product, Customer, Staff
 from inventory import Inventory
 from sales import SalesManager, SalesFactory
@@ -20,6 +21,7 @@ def show_menu() -> None:
     print("10. Low-stock products")
     print("11. Record sale")
     print("12. Product sales history")
+    print("13. Combined sales report")
     print("0. Exit")
 
 
@@ -137,6 +139,9 @@ def main() -> None:
                 product_id = int(input("Product ID: "))
                 inventory.get_product(product_id)
                 print("Sales history:", sales_manager.get_sales_data(product_id))
+
+            elif choice == "13":
+                print(sales_manager.sales_report())
 
             else:
                 print("Invalid menu option.")

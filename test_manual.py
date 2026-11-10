@@ -883,9 +883,36 @@ def main():
     print("Both registered observers received the alert.")
 
 
+    # TEST 59: COMBINED SALES REPORT
+
+    print("\nTEST 59: Combined Sales Report")
+    print("-------------------------------")
+
+    report = sales_manager.sales_report()
+
+    assert "ID: 1008" in report
+    assert "Channel: In-Store" in report
+    assert "ID: 1009" in report
+    assert "Channel: Online" in report
+    assert "Total transactions: 5" in report
+    assert "Total units sold: 13" in report
+    assert "Total revenue: 239.87" in report
+    print(report)
+
+
+    # TEST 60: EMPTY SALES REPORT
+
+    print("\nTEST 60: Empty Sales Report")
+    print("----------------------------")
+
+    empty_report = SalesManager(Inventory()).sales_report()
+
+    assert "No sales recorded." in empty_report
+    print("Empty sales report handled successfully.")
+
+
     print("\nTesting completed.")
 
 
 if __name__ == "__main__":
     main()
-
