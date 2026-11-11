@@ -1,12 +1,24 @@
 
 
-__pycache__/
-*.pyc
-
+venv/
 .venv/
 
 
+__pycache__/
+*.py[cod]
+
+
 .env
+.env.*
+!.env.example
 
 
+.vs/
 .vscode/
+
+*.log
+*.tmp
+*.bak
+
+
+Thumbs.db

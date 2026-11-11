@@ -5,6 +5,7 @@ from sales import SaleItem, SalesTransaction, SalesManager, InStoreSale, OnlineS
 from observers import LowStockNotifier
 from io import StringIO
 from contextlib import redirect_stdout
+from prediction_data import load_sales_data, clean_sales_data
 
 
 def main():
@@ -909,6 +910,40 @@ def main():
 
     assert "No sales recorded." in empty_report
     print("Empty sales report handled successfully.")
+
+
+    # TEST 61: LOAD AND CLEAN HISTORICAL SALES DATA
+
+    print("\nTEST 61: Sales Data Cleaning")
+    print("----------------------------")
+
+    raw_data = load_sales_data()
+    clean_data, summary = clean_sales_data(raw_data)
+
+    assert summary["original"] == len(raw_data)
+    assert summary["clean"] == len(clean_data)
+    assert summary["original"] == summary["invalid"] + summary["duplicates"] + summary["clean"]
+    assert not clean_data.isnull().any().any()
+    assert not clean_data.duplicated(subset=["product_id", "month"]).any()
+    assert (clean_data["in_store_units_sold"] >= 0).all()
+    assert (clean_data["online_units_sold"] >= 0).all()
+    print("Original records:", summary["original"])
+    print("Invalid records removed:", summary["invalid"])
+    print("Duplicate records removed:", summary["duplicates"])
+    print("Clean records:", summary["clean"])
+
+
+    # TEST 62: MISSING REQUIRED COLUMN
+
+    print("\nTEST 62: Missing Sales Column")
+    print("------------------------------")
+
+    try:
+        clean_sales_data(raw_data.drop(columns=["product_id"]))
+    except KeyError as error:
+        print("Validation error:", error)
+    else:
+        raise AssertionError("Missing sales columns were accepted.")
 
 
     print("\nTesting completed.")
