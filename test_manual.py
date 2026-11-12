@@ -5,7 +5,7 @@ from sales import SaleItem, SalesTransaction, SalesManager, InStoreSale, OnlineS
 from observers import LowStockNotifier
 from io import StringIO
 from contextlib import redirect_stdout
-from prediction_data import load_sales_data, clean_sales_data
+from prediction_data import load_sales_data, clean_sales_data, prepare_training_data, build_features, FEATURE_COLUMNS
 
 
 def main():
@@ -944,6 +944,42 @@ def main():
         print("Validation error:", error)
     else:
         raise AssertionError("Missing sales columns were accepted.")
+
+
+
+    # TEST 63: PREPARE TRAINING EXAMPLES
+
+    print("\nTEST 63: Prepare Training Data")
+    print("-------------------------------")
+
+    training_data = prepare_training_data(clean_data)
+
+    assert not training_data.empty
+    assert all(column in training_data.columns for column in FEATURE_COLUMNS)
+    assert training_data["months_ahead"].between(1, 12).all()
+    assert training_data["demand_label"].isin(["Low", "Medium", "High"]).all()
+    print("Training examples:", len(training_data))
+    print("Forecast range: 1 to 12 months")
+
+
+    # TEST 64: FUTURE MONTH VALIDATION
+
+    print("\nTEST 64: Future Month Validation")
+    print("--------------------------------")
+
+    product_history = clean_data[clean_data["product_id"] == 101]
+    features = build_features(101, product_history, "2027-10")
+
+    assert features["months_ahead"] == 12
+    assert features["month_number"] == 10
+    print("12-month prediction input created successfully.")
+
+    try:
+        build_features(101, product_history, "2027-11")
+    except ValueError as error:
+        print("Validation error:", error)
+    else:
+        raise AssertionError("Prediction beyond 12 months was accepted.")
 
 
     print("\nTesting completed.")
