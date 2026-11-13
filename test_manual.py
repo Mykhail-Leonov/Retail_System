@@ -6,6 +6,9 @@ from observers import LowStockNotifier
 from io import StringIO
 from contextlib import redirect_stdout
 from prediction_data import load_sales_data, clean_sales_data, prepare_training_data, build_features, FEATURE_COLUMNS
+import joblib
+import pandas as pd
+from train_prediction_model import MODEL_FILE
 
 
 def main():
@@ -946,7 +949,6 @@ def main():
         raise AssertionError("Missing sales columns were accepted.")
 
 
-
     # TEST 63: PREPARE TRAINING EXAMPLES
 
     print("\nTEST 63: Prepare Training Data")
@@ -980,6 +982,35 @@ def main():
         print("Validation error:", error)
     else:
         raise AssertionError("Prediction beyond 12 months was accepted.")
+
+
+    # TEST 65: SAVED DEMAND MODELS
+
+    print("\nTEST 65: Saved Demand Models")
+    print("------------------------------")
+
+    bundle = joblib.load(MODEL_FILE)
+
+    assert set(bundle["models"]) == {"overall", "in_store", "online"}
+    assert bundle["features"] == FEATURE_COLUMNS
+    assert bundle["last_month"] == "2026-10"
+    assert bundle["max_months_ahead"] == 12
+    assert bundle["evaluation"]["testing_examples"] > 0
+    print("Overall, In-Store and Online models loaded successfully.")
+    print("Historical testing examples:", bundle["evaluation"]["testing_examples"])
+
+
+    # TEST 66: PREDICT FUTURE DEMAND
+
+    print("\nTEST 66: Future Demand Prediction")
+    print("---------------------------------")
+
+    future_input = pd.DataFrame([features])[FEATURE_COLUMNS]
+
+    for channel, model in bundle["models"].items():
+        prediction = model.predict(future_input)[0]
+        assert prediction in ["Low", "Medium", "High"]
+        print(channel.replace("_", " ").title() + ":", prediction)
 
 
     print("\nTesting completed.")
