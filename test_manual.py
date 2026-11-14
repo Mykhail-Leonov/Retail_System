@@ -9,6 +9,7 @@ from prediction_data import load_sales_data, clean_sales_data, prepare_training_
 import joblib
 import pandas as pd
 from train_prediction_model import MODEL_FILE
+from prediction_service import DemandPredictionService
 
 
 def main():
@@ -1011,6 +1012,90 @@ def main():
         prediction = model.predict(future_input)[0]
         assert prediction in ["Low", "Medium", "High"]
         print(channel.replace("_", " ").title() + ":", prediction)
+
+
+    # TEST 67: LOAD PREDICTION SERVICE
+
+    print("\nTEST 67: Prediction Service")
+    print("---------------------------")
+
+    service = DemandPredictionService()
+    assert service.available_months() == ("2026-11", "2027-10")
+    assert service.get_product_name(101) == "Wireless Mouse"
+    assert service.get_product_name("201") == "USB Hub"
+    print("Models and sales history loaded successfully.")
+    print("Available months:", service.available_months())
+
+
+    # TEST 68: PREDICT 1 AND 12 MONTHS AHEAD
+
+    print("\nTEST 68: Service Predictions")
+    print("----------------------------")
+
+    short_prediction = service.predict_product(101, 11, 2026)
+    long_prediction = service.predict_product(101, 10, 2027)
+
+    assert short_prediction["months_ahead"] == 1
+    assert long_prediction["months_ahead"] == 12
+    assert long_prediction["product_name"] == "Wireless Mouse"
+    assert long_prediction["month"] == "2027-10"
+
+    for result in [short_prediction, long_prediction]:
+        for channel in ["overall", "in_store", "online"]:
+            assert result[channel] in ["Low", "Medium", "High"]
+
+    print("1-month and 12-month predictions created successfully.")
+    print("Overall:", long_prediction["overall"])
+    print("In Store:", long_prediction["in_store"])
+    print("Online:", long_prediction["online"])
+
+
+    # TEST 69: INVALID PREDICTION INPUTS
+
+    print("\nTEST 69: Invalid Prediction Inputs")
+    print("----------------------------------")
+
+    for month, year in [(10, 2026), (11, 2027), (13, 2027), (1, "2027")]:
+        try:
+            service.predict_product(101, month, year)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("Invalid prediction date was accepted.")
+
+    for product_id in ["abc", -1, 101.5]:
+        try:
+            service.get_product_name(product_id)
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("Invalid product ID was accepted.")
+
+    try:
+        service.predict_product(999, 1, 2027)
+    except KeyError:
+        print("Missing product handled correctly.")
+    else:
+        raise AssertionError("Missing product was accepted.")
+
+    print("Invalid dates and product IDs rejected successfully.")
+
+
+    # TEST 70: MISSING MODEL FILE
+
+    print("\nTEST 70: Missing Model File")
+    print("---------------------------")
+
+    from tempfile import TemporaryDirectory
+    from pathlib import Path
+
+    with TemporaryDirectory() as folder:
+        try:
+            DemandPredictionService(model_file=Path(folder) / "missing.joblib")
+        except FileNotFoundError as error:
+            print("Validation error:", error)
+        else:
+            raise AssertionError("Missing model file was accepted.")
 
 
     print("\nTesting completed.")
