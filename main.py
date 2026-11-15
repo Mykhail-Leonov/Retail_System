@@ -3,6 +3,7 @@ from models import Category, Product, Customer, Staff
 from inventory import Inventory
 from sales import SalesManager, SalesFactory
 from observers import LowStockNotifier
+from prediction_gui import launch_prediction_window
 
 
 # Show the options available to the user
@@ -22,6 +23,7 @@ def show_menu() -> None:
     print("11. Record sale")
     print("12. Product sales history")
     print("13. Combined sales report")
+    print("14. Predict demand")
     print("0. Exit")
 
 
@@ -142,6 +144,9 @@ def main() -> None:
 
             elif choice == "13":
                 print(sales_manager.sales_report())
+
+            elif choice == "14":
+                launch_prediction_window()
 
             else:
                 print("Invalid menu option.")
