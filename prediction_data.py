@@ -1,4 +1,3 @@
-
 from pathlib import Path
 import pandas as pd
 
@@ -13,9 +12,11 @@ VALID_LABELS = ["Low", "Medium", "High"]
 
 
 MAX_MONTHS_AHEAD = 12
+HISTORY_MONTHS = 12
 FEATURE_COLUMNS = [
     "product_id", "month_number", "months_ahead",
-    "last_store", "last_online", "average_store_3", "average_online_3"
+    "last_store", "last_online", "average_store_3", "average_online_3",
+    "average_store_12", "average_online_12"
 ]
 
 
@@ -130,14 +131,16 @@ def clean_sales_data(df):
 
 # Prepare one prediction input
 def build_features(product_id, history, target_month):
-    # Use the last 3 known months
-    recent = history.sort_values("month").tail(3)
-    if len(recent) < 3:
-        raise ValueError("At least 3 months of sales history are required.")
+    # Use the last 12 months of sales
+    recent = history.sort_values("month").tail(HISTORY_MONTHS)
+    if len(recent) < HISTORY_MONTHS:
+        raise ValueError("At least 12 months of sales history are required.")
 
+    # Check there are no missing months
     months = recent["month"].dt.to_period("M").tolist()
-    if months[1] != months[0] + 1 or months[2] != months[1] + 1:
-        raise ValueError("The last 3 months must be consecutive.")
+    for i in range(1, len(months)):
+        if months[i] != months[i - 1] + 1:
+            raise ValueError("The last 12 months must be consecutive.")
 
     target = pd.Period(target_month, freq="M")
     months_ahead = target.ordinal - months[-1].ordinal
@@ -146,16 +149,19 @@ def build_features(product_id, history, target_month):
         raise ValueError("Prediction must be 1 to 12 months ahead.")
 
     last = recent.iloc[-1]
+    last_three = recent.tail(3)
+
     return {
         "product_id": int(product_id),
         "month_number": int(target.month),
         "months_ahead": months_ahead,
         "last_store": int(last["in_store_units_sold"]),
         "last_online": int(last["online_units_sold"]),
-        "average_store_3": float(recent["in_store_units_sold"].mean()),
-        "average_online_3": float(recent["online_units_sold"].mean())
+        "average_store_3": float(last_three["in_store_units_sold"].mean()),
+        "average_online_3": float(last_three["online_units_sold"].mean()),
+        "average_store_12": float(recent["in_store_units_sold"].mean()),
+        "average_online_12": float(recent["online_units_sold"].mean())
     }
-
 
 # Make examples for training the model
 def prepare_training_data(clean):
@@ -168,9 +174,9 @@ def prepare_training_data(clean):
             for _, row in group.iterrows()
         }
 
-        # Start after the first 3 months
-        for i in range(2, len(group)):
-            history = group.iloc[i - 2:i + 1]
+        # Start after the first 12 months
+        for i in range(HISTORY_MONTHS - 1, len(group)):
+            history = group.iloc[i - HISTORY_MONTHS + 1:i + 1]
             start_month = pd.Period(history.iloc[-1]["month"], freq="M")
 
             for months_ahead in range(1, MAX_MONTHS_AHEAD + 1):
