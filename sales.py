@@ -1,5 +1,5 @@
 
-from datetime import datetime
+from datetime import datetime, date
 from typing import List
 from models import Product, Customer, User
 from inventory import Inventory
@@ -163,14 +163,23 @@ class SalesManager:
             product_id = item.get_product().get_id()
             quantities[product_id] = quantities.get(product_id, 0) + item.get_quantity()
 
-        # Check all products before changing any stock
-        for product_id, quantity in quantities.items():
-            if self.__inventory.get_stock(product_id) < quantity:
-                raise ValueError("Not enough stock for product ID " + str(product_id) + ".")
+        # Pick the stock channel for this sale
+        if transaction.get_channel() == "Online":
+            channel = "online"
+        elif transaction.get_channel() in ("In-Store", "Unspecified"):
+            channel = "in_store"
+        else:
+            raise ValueError("Unknown sales channel.")
 
-        # Only record the transaction after the stock checks pass
+        # Check this channel before changing any stock
         for product_id, quantity in quantities.items():
-            self.__inventory.update_stock(product_id, -quantity)
+            if self.__inventory.get_stock(product_id, channel) < quantity:
+                raise ValueError("Not enough " + channel.replace("_", "-") +
+                                 " stock for product ID " + str(product_id) + ".")
+
+        # Only record the transaction after all checks pass
+        for product_id, quantity in quantities.items():
+            self.__inventory.update_stock(product_id, -quantity, channel)
 
         transaction.mark_recorded()
         self.__transactions.append(transaction)
@@ -191,22 +200,72 @@ class SalesManager:
 
         return quantities
 
-    # Generate a combined report of recorded sales
-    def sales_report(self) -> str:
-        report = "SALES REPORT\n------------\n"
+    # Convert a date filter to a date value
+    def __report_date(self, value):
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            return value.date()
+        if isinstance(value, date):
+            return value
+        if isinstance(value, str):
+            try:
+                return date.fromisoformat(value)
+            except ValueError:
+                pass
+        raise ValueError("Enter a valid date in YYYY-MM-DD format.")
 
-        if not self.__transactions:
-            return report + "No sales recorded."
+    # Generate a combined report, with optional filters
+    def sales_report(self, start_date=None, end_date=None, channel=None) -> str:
+        start_date = self.__report_date(start_date)
+        end_date = self.__report_date(end_date)
+        if start_date and end_date and start_date > end_date:
+            raise ValueError("Start date cannot be after end date.")
+        if channel not in (None, "in_store", "online"):
+            raise ValueError("Channel must be 'in_store' or 'online'.")
+
+        report = "SALES REPORT\n------------\n"
+        if start_date or end_date:
+            report += "Period: {} to {}\n".format(
+                start_date.isoformat() if start_date else "Start",
+                end_date.isoformat() if end_date else "Today"
+            )
+        else:
+            report += "Period: All recorded sales\n"
+        report += "Filter: {}\n".format(channel.replace("_", "-") if channel else "Both channels")
+
+        selected = []
+        for transaction in self.__transactions:
+            transaction_date = transaction.get_date().date()
+            transaction_channel = "online" if transaction.get_channel() == "Online" else "in_store"
+            if start_date and transaction_date < start_date:
+                continue
+            if end_date and transaction_date > end_date:
+                continue
+            if channel and channel != transaction_channel:
+                continue
+            selected.append(transaction)
+
+        if not selected:
+            return report + "No sales recorded for the selected period."
 
         total_revenue = 0.0
         total_units = 0
+        channel_revenue = {"in_store": 0.0, "online": 0.0}
+        channel_units = {"in_store": 0, "online": 0}
+        channel_transactions = {"in_store": 0, "online": 0}
 
-        for transaction in self.__transactions:
+        for transaction in selected:
             sale_total = transaction.calculate_total()
+            sales_channel = "online" if transaction.get_channel() == "Online" else "in_store"
             total_revenue += sale_total
+            channel_revenue[sales_channel] += sale_total
+            channel_transactions[sales_channel] += 1
 
             for item in transaction.get_items():
-                total_units += item.get_quantity()
+                quantity = item.get_quantity()
+                total_units += quantity
+                channel_units[sales_channel] += quantity
 
             report += (
                 f"ID: {transaction.get_id()} | "
@@ -216,9 +275,12 @@ class SalesManager:
             )
 
         report += (
-            f"\nTotal transactions: {len(self.__transactions)}\n"
+            f"\nTotal transactions: {len(selected)}\n"
             f"Total units sold: {total_units}\n"
-            f"Total revenue: {total_revenue:.2f}"
+            f"Total revenue: {total_revenue:.2f}\n"
+            f"In-store: {channel_transactions['in_store']} transactions, "
+            f"{channel_units['in_store']} units, {channel_revenue['in_store']:.2f} revenue\n"
+            f"Online: {channel_transactions['online']} transactions, "
+            f"{channel_units['online']} units, {channel_revenue['online']:.2f} revenue"
         )
-
         return report

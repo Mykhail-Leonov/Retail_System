@@ -192,7 +192,6 @@ def prepare_training_data(clean):
 
                 # Target month's sales are answers, not input features
                 features["target_month"] = target_month.to_timestamp()
-                features["demand_label"] = target["demand_label"]
                 features["in_store_units_sold"] = int(target["in_store_units_sold"])
                 features["online_units_sold"] = int(target["online_units_sold"])
                 examples.append(features)

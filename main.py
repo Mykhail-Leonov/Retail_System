@@ -1,4 +1,4 @@
-
+from datetime import date, timedelta
 from models import Category, Product, Customer, Staff
 from inventory import Inventory
 from sales import SalesManager, SalesFactory
@@ -27,6 +27,90 @@ def show_menu() -> None:
     print("0. Exit")
 
 
+# Let the user pick a match if more than one exists
+def choose_match(matches, name):
+    if not matches:
+        raise KeyError("No matching {} found.".format(name))
+    if len(matches) == 1:
+        return matches[0]
+
+    print("Matching {}:".format(name))
+    for number, item in enumerate(matches, 1):
+        print("{}. {} (ID: {})".format(number, item.get_name(), item.get_id()))
+
+    selection = int(input("Choose number: "))
+    if selection < 1 or selection > len(matches):
+        raise ValueError("Invalid selection.")
+    return matches[selection - 1]
+
+
+# Find a product by name or ID
+def choose_product(inventory, prompt="Product name (or ID): "):
+    query = input(prompt).strip()
+    if not query:
+        raise ValueError("Enter a product name or ID.")
+
+    if query.isdigit():
+        return inventory.get_product(int(query))
+
+    matches = inventory.search_product(query)
+    exact = [product for product in matches if product.get_name().lower() == query.lower()]
+    return choose_match(exact if len(exact) == 1 else matches, "products")
+
+
+# Find a category by name or ID
+def choose_category(inventory, prompt="Category name (or ID): "):
+    query = input(prompt).strip()
+    if not query:
+        raise ValueError("Enter a category name or ID.")
+
+    if query.isdigit():
+        return inventory.get_category(int(query))
+
+    matches = inventory.search_category(query)
+    exact = [category for category in matches if category.get_name().lower() == query.lower()]
+    return choose_match(exact if len(exact) == 1 else matches, "categories")
+
+
+# Get date and channel filters for the report
+def choose_report_filters():
+    print("Period: 1. All  2. Today  3. This week  4. Month  5. Exact date  6. Date range")
+    period = input("Choose period (1-6): ").strip()
+    today = date.today()
+    start = None
+    end = None
+
+    if period == "1":
+        pass
+    elif period == "2":
+        start = end = today
+    elif period == "3":
+        start = today - timedelta(days=today.weekday())
+        end = today
+    elif period == "4":
+        year = int(input("Year: "))
+        month = int(input("Month (1-12): "))
+        start = date(year, month, 1)
+        if month == 12:
+            end = date(year + 1, 1, 1) - timedelta(days=1)
+        else:
+            end = date(year, month + 1, 1) - timedelta(days=1)
+    elif period == "5":
+        start = end = date.fromisoformat(input("Date (YYYY-MM-DD): ").strip())
+    elif period == "6":
+        start = date.fromisoformat(input("Start date (YYYY-MM-DD): ").strip())
+        end = date.fromisoformat(input("End date (YYYY-MM-DD): ").strip())
+    else:
+        raise ValueError("Choose a period from 1 to 6.")
+
+    channel = input("Channel (both/in_store/online): ").strip().lower()
+    if channel == "both":
+        channel = None
+    elif channel not in ("in_store", "online"):
+        raise ValueError("Choose both, in_store or online.")
+    return start, end, channel
+
+
 # Run the menu and connect the existing classes
 def main() -> None:
     inventory = Inventory()
@@ -52,37 +136,37 @@ def main() -> None:
                 print("Category added successfully.")
 
             elif choice == "2":
-                category_id = int(input("Category ID: "))
+                category = choose_category(inventory)
                 name = input("New category name: ")
-                inventory.get_category(category_id).update_name(name)
+                category.update_name(name)
                 print("Category updated successfully.")
 
             elif choice == "3":
-                category_id = int(input("Category ID: "))
-                inventory.remove_category(category_id)
+                category = choose_category(inventory)
+                inventory.remove_category(category.get_id())
                 print("Category removed successfully.")
 
             elif choice == "4":
                 product_id = int(input("Product ID: "))
                 name = input("Product name: ")
                 price = float(input("Product price: "))
-                category_id = int(input("Category ID: "))
-                quantity = int(input("Starting stock quantity: "))
-                category = inventory.get_category(category_id)
+                category = choose_category(inventory)
+                store_quantity = int(input("Starting in-store stock: "))
+                online_quantity = int(input("Starting online stock: "))
                 product = Product(product_id, name, price, category)
-                inventory.add_product(product, quantity)
+                inventory.add_product(product, store_quantity, online_quantity)
                 print("Product added successfully.")
 
             elif choice == "5":
-                product_id = int(input("Product ID: "))
+                product = choose_product(inventory)
                 name = input("New product name: ")
                 price = float(input("New product price: "))
-                inventory.update_product(product_id, name, price)
+                inventory.update_product(product.get_id(), name, price)
                 print("Product updated successfully.")
 
             elif choice == "6":
-                product_id = int(input("Product ID: "))
-                inventory.remove_product(product_id)
+                product = choose_product(inventory)
+                inventory.remove_product(product.get_id())
                 print("Product removed successfully.")
 
             elif choice == "7":
@@ -91,15 +175,20 @@ def main() -> None:
                 if not products:
                     print("No matching products found.")
                 for product in products:
-                    print("ID: {} | Name: {} | Price: {:.2f} | Stock: {}".format(
-                        product.get_id(), product.get_name(),
-                        product.get_price(), inventory.get_stock(product.get_id())))
+                    product_id = product.get_id()
+                    print("ID: {} | Name: {} | Category: {} | Price: {:.2f} | In-store: {} | Online: {} | Stock: {}".format(
+                        product_id, product.get_name(), product.get_category().get_name(),
+                        product.get_price(), inventory.get_stock(product_id, "in_store"),
+                        inventory.get_stock(product_id, "online"), inventory.get_stock(product_id)))
 
             elif choice == "8":
-                product_id = int(input("Product ID: "))
+                product = choose_product(inventory)
+                channel = input("Channel (in_store/online): ").strip().lower()
                 change = int(input("Stock change (e.g. 5 or -2): "))
-                inventory.update_stock(product_id, change)
-                print("New stock:", inventory.get_stock(product_id))
+                inventory.update_stock(product.get_id(), change, channel)
+                print("New {} stock: {} | Total: {}".format(
+                    channel.replace("_", "-"), inventory.get_stock(product.get_id(), channel),
+                    inventory.get_stock(product.get_id())))
 
             elif choice == "9":
                 print(inventory.inventory_report())
@@ -109,9 +198,12 @@ def main() -> None:
                 if not low_stock_products:
                     print("No low-stock products.")
                 for product in low_stock_products:
-                    print("{} (ID: {}) - {} remaining".format(
-                        product.get_name(), product.get_id(),
-                        inventory.get_stock(product.get_id())))
+                    product_id = product.get_id()
+                    channels = inventory.get_low_stock_channels(product_id)
+                    for channel in channels:
+                        print("{} (ID: {}) - {}: {} remaining".format(
+                            product.get_name(), product_id, channel.replace("_", "-"),
+                            inventory.get_stock(product_id, channel)))
 
             elif choice == "11":
                 sale_type = input("Sale type (in_store/online): ")
@@ -128,9 +220,8 @@ def main() -> None:
 
                 for number in range(item_count):
                     print("Item", number + 1)
-                    product_id = int(input("Product ID: "))
+                    product = choose_product(inventory)
                     quantity = int(input("Quantity: "))
-                    product = inventory.get_product(product_id)
                     sale.add_item(product, quantity)
 
                 sales_manager.record_sale(sale)
@@ -138,12 +229,12 @@ def main() -> None:
                     sale.get_channel(), sale.calculate_total()))
 
             elif choice == "12":
-                product_id = int(input("Product ID: "))
-                inventory.get_product(product_id)
-                print("Sales history:", sales_manager.get_sales_data(product_id))
+                product = choose_product(inventory)
+                print("Sales history:", sales_manager.get_sales_data(product.get_id()))
 
             elif choice == "13":
-                print(sales_manager.sales_report())
+                start, end, channel = choose_report_filters()
+                print(sales_manager.sales_report(start, end, channel))
 
             elif choice == "14":
                 launch_prediction_window()

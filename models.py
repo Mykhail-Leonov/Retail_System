@@ -20,6 +20,10 @@ class Category:
     def get_id(self) -> int:
         return self.__category_id
 
+    # Return category name
+    def get_name(self) -> str:
+        return self.__name
+
     # Update category name
     def update_name(self, name: str) -> None:
 

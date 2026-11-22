@@ -3,6 +3,8 @@ from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from datetime import date, timedelta
+from unittest.mock import patch
 
 from models import Category, Product, Customer, Staff
 from inventory import Inventory
@@ -10,6 +12,7 @@ from sales import SalesTransaction, SalesManager, SalesFactory, InStoreSale, Onl
 from observers import LowStockNotifier
 from prediction_data import FEATURE_COLUMNS, VALID_LABELS, load_sales_data, clean_sales_data, build_features
 from prediction_service import DemandPredictionService
+from main import choose_product
 
 
 class TestProducts(unittest.TestCase):
@@ -19,7 +22,7 @@ class TestProducts(unittest.TestCase):
         self.product = Product(101, "Wireless Mouse", 19.99, self.category)
         self.inventory = Inventory()
         self.inventory.add_category(self.category)
-        self.inventory.add_product(self.product, 10)
+        self.inventory.add_product(self.product, 10, 10)
 
     def test_product_created(self):
         self.assertEqual(self.product.get_id(), 101)
@@ -50,6 +53,13 @@ class TestProducts(unittest.TestCase):
         another = Product(101, "Keyboard", 35, self.category)
         with self.assertRaises(ValueError):
             self.inventory.add_product(another, 5)
+    def test_name_search_with_multiple_matches(self):
+        pad = Product(103, "Mouse Pad", 5, self.category)
+        self.inventory.add_product(pad, 3, 3)
+        with patch("builtins.input", side_effect=["mouse", "2"]), redirect_stdout(StringIO()):
+            result = choose_product(self.inventory)
+        self.assertIs(result, pad)
+
 
 
 class TestInventory(unittest.TestCase):
@@ -59,17 +69,17 @@ class TestInventory(unittest.TestCase):
         self.product = Product(101, "Wireless Mouse", 19.99, self.category)
         self.inventory = Inventory(low_stock_limit=5)
         self.inventory.add_category(self.category)
-        self.inventory.add_product(self.product, 10)
+        self.inventory.add_product(self.product, 10, 10)
 
     def test_stock_goes_up_and_down(self):
         self.inventory.update_stock(101, -3)
         self.inventory.update_stock(101, 5)
-        self.assertEqual(self.inventory.get_stock(101), 12)
+        self.assertEqual(self.inventory.get_stock(101, "in_store"), 12)
 
     def test_cannot_sell_more_than_stock(self):
         with self.assertRaises(ValueError):
             self.inventory.update_stock(101, -11)
-        self.assertEqual(self.inventory.get_stock(101), 10)
+        self.assertEqual(self.inventory.get_stock(101, "in_store"), 10)
 
     def test_negative_starting_stock_rejected(self):
         extra = Product(102, "Keyboard", 30, self.category)
@@ -101,6 +111,24 @@ class TestInventory(unittest.TestCase):
     def test_cannot_remove_category_in_use(self):
         with self.assertRaises(ValueError):
             self.inventory.remove_category(1)
+    def test_separate_stock_and_inventory_report(self):
+        self.inventory.update_stock(101, -3, "online")
+        self.assertEqual(self.inventory.get_stock(101, "in_store"), 10)
+        self.assertEqual(self.inventory.get_stock(101, "online"), 7)
+        self.assertEqual(self.inventory.get_stock(101), 17)
+        report = self.inventory.inventory_report()
+        self.assertIn("Category: Electronics", report)
+        self.assertIn("In-store: 10 | Online: 7 | Stock: 17", report)
+        self.assertIn("Total stock: 17", report)
+
+    def test_online_low_stock_alert(self):
+        self.inventory.attach(LowStockNotifier())
+        output = StringIO()
+        with redirect_stdout(output):
+            self.inventory.update_stock(101, -5, "online")
+        self.assertIn("online", output.getvalue())
+        self.assertEqual(self.inventory.get_low_stock_channels(101), ["online"])
+
 
 
 class TestSales(unittest.TestCase):
@@ -111,8 +139,8 @@ class TestSales(unittest.TestCase):
         self.keyboard = Product(102, "Keyboard", 30, category)
         self.inventory = Inventory()
         self.inventory.add_category(category)
-        self.inventory.add_product(self.mouse, 10)
-        self.inventory.add_product(self.keyboard, 5)
+        self.inventory.add_product(self.mouse, 10, 6)
+        self.inventory.add_product(self.keyboard, 5, 5)
         self.customer = Customer(1, "Jordan")
         self.staff = Staff(1, "Alex")
         self.manager = SalesManager(self.inventory)
@@ -146,7 +174,9 @@ class TestSales(unittest.TestCase):
         online.add_item(self.mouse, 3)
         self.manager.record_sale(online)
 
-        self.assertEqual(self.inventory.get_stock(101), 5)
+        self.assertEqual(self.inventory.get_stock(101, "in_store"), 8)
+        self.assertEqual(self.inventory.get_stock(101, "online"), 3)
+        self.assertEqual(self.inventory.get_stock(101), 11)
         self.assertEqual(self.manager.get_sales_data(101), [2, 3])
         report = self.manager.sales_report()
         self.assertIn("Channel: In-Store", report)
@@ -157,7 +187,7 @@ class TestSales(unittest.TestCase):
         sale = SalesTransaction(1, self.customer, self.staff)
         with self.assertRaises(ValueError):
             self.manager.record_sale(sale)
-        self.assertEqual(self.inventory.get_stock(101), 10)
+        self.assertEqual(self.inventory.get_stock(101, "in_store"), 10)
 
     def test_failed_sale_leaves_all_stock_unchanged(self):
         sale = SalesTransaction(1, self.customer, self.staff)
@@ -167,8 +197,8 @@ class TestSales(unittest.TestCase):
         with self.assertRaises(ValueError):
             self.manager.record_sale(sale)
 
-        self.assertEqual(self.inventory.get_stock(101), 10)
-        self.assertEqual(self.inventory.get_stock(102), 5)
+        self.assertEqual(self.inventory.get_stock(101, "in_store"), 10)
+        self.assertEqual(self.inventory.get_stock(102, "in_store"), 5)
 
     def test_duplicate_transaction_rejected(self):
         first = SalesTransaction(1, self.customer, self.staff)
@@ -179,7 +209,7 @@ class TestSales(unittest.TestCase):
         duplicate.add_item(self.mouse, 1)
         with self.assertRaises(ValueError):
             self.manager.record_sale(duplicate)
-        self.assertEqual(self.inventory.get_stock(101), 8)
+        self.assertEqual(self.inventory.get_stock(101, "in_store"), 8)
 
     def test_recorded_sale_cannot_be_reused(self):
         sale = SalesTransaction(1, self.customer, self.staff)
@@ -190,6 +220,35 @@ class TestSales(unittest.TestCase):
             self.manager.record_sale(sale)
         with self.assertRaises(ValueError):
             sale.add_item(self.mouse, 1)
+    def test_online_sale_cannot_use_store_stock(self):
+        online = SalesFactory.create_sale("online", 1, self.customer, self.staff)
+        online.add_item(self.mouse, 7)
+        with self.assertRaises(ValueError):
+            self.manager.record_sale(online)
+        self.assertEqual(self.inventory.get_stock(101, "in_store"), 10)
+        self.assertEqual(self.inventory.get_stock(101, "online"), 6)
+
+    def test_sales_report_filters(self):
+        store = SalesFactory.create_sale("in_store", 1, self.customer, self.staff)
+        store.add_item(self.mouse, 2)
+        self.manager.record_sale(store)
+        online = SalesFactory.create_sale("online", 2, self.customer, self.staff)
+        online.add_item(self.mouse, 1)
+        self.manager.record_sale(online)
+
+        today = date.today()
+        report = self.manager.sales_report(today, today, "online")
+        self.assertIn("Total transactions: 1", report)
+        self.assertIn("Total units sold: 1", report)
+        self.assertIn("Total revenue: 20.00", report)
+        self.assertNotIn("Channel: In-Store", report)
+
+        empty = self.manager.sales_report(today + timedelta(days=1),
+                                          today + timedelta(days=1))
+        self.assertIn("No sales recorded", empty)
+        with self.assertRaises(ValueError):
+            self.manager.sales_report(today, today - timedelta(days=1))
+
 
 
 class TestPrediction(unittest.TestCase):
@@ -230,8 +289,16 @@ class TestPrediction(unittest.TestCase):
                 result = service.predict_product(101, month, year)
                 self.assertEqual(result["product_id"], 101)
                 self.assertEqual(result["months_ahead"], months_ahead)
-                for channel in ["overall", "in_store", "online"]:
+                self.assertNotIn("overall", result)
+                for channel in ["in_store", "online"]:
                     self.assertIn(result[channel], VALID_LABELS)
+
+    def test_search_prediction_products_by_name(self):
+        service = DemandPredictionService()
+        matches = service.search_products("mouse")
+        self.assertEqual({item["product_id"] for item in matches}, {101, 103})
+        one = service.search_products("101")
+        self.assertEqual(one[0]["product_name"], "Wireless Mouse")
 
     def test_unknown_product_rejected(self):
         service = DemandPredictionService()

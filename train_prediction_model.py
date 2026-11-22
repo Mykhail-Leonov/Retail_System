@@ -29,9 +29,6 @@ def get_thresholds(data):
 
 # Get the correct labels for each model
 def get_labels(data, channel, thresholds):
-    if channel == "overall":
-        return data["demand_label"]
-
     low, high = thresholds[channel]
 
     def find_label(units):
@@ -44,12 +41,12 @@ def get_labels(data, channel, thresholds):
     return data[CHANNEL_COLUMNS[channel]].apply(find_label)
 
 
-# Train the three Decision Tree models
+# Train the two Decision Tree models
 def fit_models(data, thresholds):
     models = {}
     X = data[FEATURE_COLUMNS]
 
-    for channel in ["overall", "in_store", "online"]:
+    for channel in ["in_store", "online"]:
         y = get_labels(data, channel, thresholds)
         model = DecisionTreeClassifier(max_depth=3, random_state=42)
         model.fit(X, y)
@@ -93,7 +90,6 @@ def evaluate_models(clean, examples):
                 continue
 
             row = actual.iloc[0]
-            features["demand_label"] = row["demand_label"]
             features["in_store_units_sold"] = int(row["in_store_units_sold"])
             features["online_units_sold"] = int(row["online_units_sold"])
             test_rows.append(features)
@@ -153,7 +149,7 @@ def train_models():
     print("Test period:", str(pd.Period(evaluation["cutoff"]) + 1), "to", bundle["last_month"])
     print("Historical training examples:", evaluation["training_examples"])
     print("Historical testing examples:", evaluation["testing_examples"])
-    for channel in ["overall", "in_store", "online"]:
+    for channel in ["in_store", "online"]:
         print("\n" + channel.replace("_", " ").title() + " accuracy: {:.1%}".format(
             evaluation["scores"][channel]
         ))

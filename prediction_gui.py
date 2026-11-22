@@ -9,7 +9,7 @@ class PredictionWindow:
     def __init__(self, window):
         self.window = window
         self.window.title("Smart Retail - Demand Prediction")
-        self.window.geometry("490x560")
+        self.window.geometry("490x600")
         self.window.resizable(False, False)
 
         self.service = DemandPredictionService()
@@ -17,13 +17,15 @@ class PredictionWindow:
         first_year, first_month = map(int, first.split("-"))
 
         self.product_id = tk.StringVar()
-        self.product_name = tk.StringVar(value="Enter a product ID")
+        self.product_name = tk.StringVar(value="Enter a product name or ID")
+        self.product_choice = tk.StringVar()
+        self.product_options = {}
+        self.selected_product_id = None
         self.month = tk.StringVar(value=calendar.month_name[first_month])
         self.year = tk.StringVar(value=str(first_year))
         self.available_range = "Available months: {} to {}".format(first, last)
         self.status = tk.StringVar(value=self.available_range)
         self.results = {
-            "overall": tk.StringVar(value="—"),
             "in_store": tk.StringVar(value="—"),
             "online": tk.StringVar(value="—")
         }
@@ -36,13 +38,18 @@ class PredictionWindow:
         ttk.Label(frame, text="Choose a product and month to predict demand.").pack(
             anchor="w", pady=(0, 18))
 
-        ttk.Label(frame, text="Product ID").pack(anchor="w")
+        ttk.Label(frame, text="Product name (or ID)").pack(anchor="w")
         id_entry = ttk.Entry(frame, textvariable=self.product_id)
         id_entry.pack(fill="x", pady=(4, 6))
-        ttk.Label(frame, textvariable=self.product_name).pack(anchor="w", pady=(0, 18))
+        ttk.Label(frame, textvariable=self.product_name).pack(anchor="w", pady=(0, 8))
+
+        # Only show this when the name matches multiple products
+        self.choice_box = ttk.Combobox(frame, textvariable=self.product_choice, state="readonly")
+        self.choice_box.bind("<<ComboboxSelected>>", self.on_choice_changed)
 
         fields = ttk.Frame(frame)
-        fields.pack(fill="x")
+        self.fields = fields
+        fields.pack(fill="x", pady=(12, 0))
         fields.columnconfigure(0, weight=1)
         fields.columnconfigure(1, weight=1)
 
@@ -51,18 +58,22 @@ class PredictionWindow:
         ttk.Combobox(fields, textvariable=self.month,
                      values=list(calendar.month_name)[1:], state="readonly").grid(
             row=1, column=0, sticky="ew", pady=(4, 16))
-        ttk.Entry(fields, textvariable=self.year).grid(
-            row=1, column=1, sticky="ew", padx=(16, 0), pady=(4, 16))
+
+        last_year = int(last.split("-")[0])
+        ttk.Combobox(
+            fields,
+            textvariable=self.year,
+            values=[str(y) for y in range(first_year, last_year + 1)],
+            state="readonly"
+        ).grid(row=1, column=1, sticky="ew", padx=(16, 0), pady=(4, 16))
 
         ttk.Button(frame, text="Predict Demand", command=self.predict).pack(
             fill="x", pady=(0, 20))
 
-        ttk.Label(frame, text="Results", font=("Segoe UI", 12, "bold")).pack(
-            anchor="w", pady=(0, 10))
+        ttk.Label(frame, text="Demand Prediction Report",
+                  font=("Segoe UI", 12, "bold")).pack(anchor="w", pady=(0, 10))
 
-        for key, name in [("overall", "Overall"),
-                          ("in_store", "In-store"),
-                          ("online", "Online")]:
+        for key, name in [("in_store", "In-store"), ("online", "Online")]:
             line = ttk.Frame(frame)
             line.pack(fill="x", pady=5)
             ttk.Label(line, text=name, width=16).pack(side="left")
@@ -71,7 +82,7 @@ class PredictionWindow:
 
         ttk.Label(frame, textvariable=self.status).pack(anchor="w", pady=(18, 0))
 
-        # Update the name when the ID changes
+        # Update the name when the search changes
         self.product_id.trace_add("write", self.on_product_changed)
         self.month.trace_add("write", self.clear_results)
         self.year.trace_add("write", self.clear_results)
@@ -83,30 +94,65 @@ class PredictionWindow:
             value.set("—")
         self.status.set(self.available_range)
 
-    # Show the product name
+    # Search by product name or ID
     def on_product_changed(self, *args):
-        product_id = self.product_id.get().strip()
-        if not product_id:
-            self.product_name.set("Enter a product ID")
+        query = self.product_id.get().strip()
+        self.selected_product_id = None
+        self.product_options = {}
+        self.product_choice.set("")
+        self.choice_box.pack_forget()
+
+        if not query:
+            self.product_name.set("Enter a product name or ID")
         else:
             try:
-                self.product_name.set(self.service.get_product_name(product_id))
-            except (KeyError, ValueError):
+                matches = self.service.search_products(query)
+            except ValueError:
+                matches = []
+
+            # Prefer a full-name match over partial matches
+            exact = [item for item in matches
+                     if item["product_name"].lower() == query.lower()]
+            if len(exact) == 1:
+                matches = exact
+
+            if not matches:
                 self.product_name.set("No matching product in sales history")
+            elif len(matches) == 1:
+                self.selected_product_id = matches[0]["product_id"]
+                self.product_name.set(matches[0]["product_name"])
+            else:
+                self.product_name.set("Multiple matches - choose one:")
+                self.product_options = {
+                    "{} (ID: {})".format(item["product_name"], item["product_id"]): item["product_id"]
+                    for item in matches
+                }
+                self.choice_box["values"] = list(self.product_options)
+                self.choice_box.pack(fill="x", pady=(0, 8), before=self.fields)
+
         self.clear_results()
 
-    # Get the three predictions
+    # Use the product selected from the matches
+    def on_choice_changed(self, *args):
+        choice = self.product_choice.get()
+        self.selected_product_id = self.product_options.get(choice)
+        if self.selected_product_id is not None:
+            self.product_name.set(self.service.get_product_name(self.selected_product_id))
+        self.clear_results()
+
+    # Get the two predictions
     def predict(self):
         try:
-            product_id = self.product_id.get().strip()
+            if self.selected_product_id is None:
+                raise ValueError("Enter or select a matching product.")
+
             month = list(calendar.month_name).index(self.month.get())
             try:
                 year = int(self.year.get().strip())
             except ValueError:
                 raise ValueError("Enter a valid year.")
 
-            result = self.service.predict_product(product_id, month, year)
-
+            result = self.service.predict_product(self.selected_product_id, month, year)
             for channel in self.results:
                 self.results[channel].set(result[channel] + " Demand")
 

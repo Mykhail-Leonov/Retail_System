@@ -23,7 +23,7 @@ class DemandPredictionService:
         # Check the saved model settings
         if self.__bundle.get("features") != FEATURE_COLUMNS:
             raise ValueError("Model features do not match the prediction code.")
-        if set(self.__bundle.get("models", {})) != {"overall", "in_store", "online"}:
+        if set(self.__bundle.get("models", {})) != {"in_store", "online"}:
             raise ValueError("One or more prediction models are missing.")
         if self.__bundle.get("max_months_ahead") != MAX_MONTHS_AHEAD:
             raise ValueError("Model prediction range does not match.")
@@ -51,6 +51,24 @@ class DemandPredictionService:
             raise KeyError("No sales history found for this product ID.")
 
         return product_id, sales
+
+    # Find products in the historical sales data
+    def search_products(self, query):
+        if not isinstance(query, str) or not query.strip():
+            raise ValueError("Enter a product name or ID.")
+
+        products = self.__history[["product_id", "product_name"]].drop_duplicates()
+        query = query.strip()
+        if query.isdigit():
+            matches = products[products["product_id"] == int(query)]
+        else:
+            matches = products[products["product_name"].str.contains(
+                query, case=False, regex=False)]
+
+        return [
+            {"product_id": int(row["product_id"]), "product_name": row["product_name"]}
+            for _, row in matches.sort_values("product_name").iterrows()
+        ]
 
     # Months that can be predicted
     def available_months(self):
@@ -83,9 +101,9 @@ class DemandPredictionService:
         features = build_features(product_id, history, target)
         X = pd.DataFrame([features])[FEATURE_COLUMNS]
 
-        # Get the three predictions
+        # Get the two predictions
         predictions = {}
-        for channel in ["overall", "in_store", "online"]:
+        for channel in ["in_store", "online"]:
             label = str(self.__bundle["models"][channel].predict(X)[0])
             if label not in VALID_LABELS:
                 raise ValueError("Unexpected prediction result.")
@@ -96,7 +114,6 @@ class DemandPredictionService:
             "product_name": history.iloc[-1]["product_name"],
             "month": str(target),
             "months_ahead": months_ahead,
-            "overall": predictions["overall"],
             "in_store": predictions["in_store"],
             "online": predictions["online"]
         }
