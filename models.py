@@ -157,3 +157,10 @@ class Customer:
         self.__customer_id = customer_id
         self.__name = name.strip()
 
+    # Return customer details for sales reports
+    def get_id(self) -> int:
+        return self.__customer_id
+
+    def get_name(self) -> str:
+        return self.__name
+

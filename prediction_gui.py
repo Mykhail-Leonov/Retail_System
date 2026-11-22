@@ -6,11 +6,12 @@ from prediction_service import DemandPredictionService
 
 class PredictionWindow:
 
-    def __init__(self, window):
+    def __init__(self, window, embedded=False):
         self.window = window
-        self.window.title("Smart Retail - Demand Prediction")
-        self.window.geometry("490x600")
-        self.window.resizable(False, False)
+        if not embedded:
+            self.window.title("Smart Retail - Demand Prediction")
+            self.window.geometry("490x600")
+            self.window.resizable(False, False)
 
         self.service = DemandPredictionService()
         first, last = self.service.available_months()

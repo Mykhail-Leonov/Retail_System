@@ -247,4 +247,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    from retail_gui import launch_retail_gui
+    launch_retail_gui()

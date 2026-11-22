@@ -19,6 +19,7 @@ class SaleItem:
         self.__product = product
         self.__quantity = quantity
         self.__unit_price = product.get_price()
+        self.__product_name = product.get_name()
 
     # Return the product in this sale item
     def get_product(self) -> Product:
@@ -27,6 +28,13 @@ class SaleItem:
     # Return the sold quantity
     def get_quantity(self) -> int:
         return self.__quantity
+
+    # Keep the original product name and price in the report
+    def get_product_name(self) -> str:
+        return self.__product_name
+
+    def get_unit_price(self) -> float:
+        return self.__unit_price
 
     # Calculate the cost for this item
     def line_total(self) -> float:
@@ -61,6 +69,10 @@ class SalesTransaction:
     # Return the date of the transaction
     def get_date(self) -> datetime:
         return self.__date
+
+    # Return the customer for the sales report
+    def get_customer(self) -> Customer:
+        return self.__customer
 
     # Identify the type of transaction
     def get_channel(self) -> str:
@@ -267,12 +279,23 @@ class SalesManager:
                 total_units += quantity
                 channel_units[sales_channel] += quantity
 
+            customer = transaction.get_customer()
             report += (
-                f"ID: {transaction.get_id()} | "
-                f"Date: {transaction.get_date().strftime('%Y-%m-%d')} | "
-                f"Channel: {transaction.get_channel()} | "
-                f"Total: {sale_total:.2f}\n"
+                f"\nID: {transaction.get_id()} | "
+                f"Date: {transaction.get_date().strftime('%Y-%m-%d %H:%M:%S')} | "
+                f"Channel: {transaction.get_channel()}\n"
+                f"Customer: {customer.get_name()} (ID: {customer.get_id()})\n"
+                "Items:\n"
             )
+            for item in transaction.get_items():
+                report += (
+                    f"  Product ID: {item.get_product().get_id()} | "
+                    f"Name: {item.get_product_name()} | "
+                    f"Quantity: {item.get_quantity()} | "
+                    f"Unit price: {item.get_unit_price():.2f} | "
+                    f"Line total: {item.line_total():.2f}\n"
+                )
+            report += f"Transaction total: {sale_total:.2f}\n"
 
         report += (
             f"\nTotal transactions: {len(selected)}\n"

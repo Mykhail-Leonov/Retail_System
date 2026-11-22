@@ -68,6 +68,13 @@ class Inventory:
             "online": online_quantity
         }
 
+    # Lists that used by the interface
+    def get_products(self) -> List[Product]:
+        return self.__products.copy()
+
+    def get_categories(self) -> List[Category]:
+        return self.__categories.copy()
+
     # Find a product using its ID
     def get_product(self, product_id: int) -> Product:
         for product in self.__products:

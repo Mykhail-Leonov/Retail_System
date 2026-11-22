@@ -228,6 +228,52 @@ class TestSales(unittest.TestCase):
         self.assertEqual(self.inventory.get_stock(101, "in_store"), 10)
         self.assertEqual(self.inventory.get_stock(101, "online"), 6)
 
+    def test_detailed_sales_report(self):
+        sale = SalesFactory.create_sale("in_store", 1, self.customer, self.staff)
+        sale.add_item(self.mouse, 2)
+        sale.add_item(self.keyboard, 1)
+        self.manager.record_sale(sale)
+
+        report = self.manager.sales_report()
+        self.assertIn("ID: 1 | Date:", report)
+        self.assertIn("Channel: In-Store", report)
+        self.assertIn("Customer: Jordan (ID: 1)", report)
+        self.assertIn("Product ID: 101 | Name: Mouse | Quantity: 2", report)
+        self.assertIn("Unit price: 20.00 | Line total: 40.00", report)
+        self.assertIn("Product ID: 102 | Name: Keyboard | Quantity: 1", report)
+        self.assertIn("Unit price: 30.00 | Line total: 30.00", report)
+        self.assertIn("Transaction total: 70.00", report)
+        self.assertIn("Total transactions: 1", report)
+        self.assertIn("Total units sold: 3", report)
+        self.assertIn("Total revenue: 70.00", report)
+
+    def test_report_keeps_original_product_details(self):
+        sale = SalesFactory.create_sale("in_store", 1, self.customer, self.staff)
+        sale.add_item(self.mouse, 2)
+        self.manager.record_sale(sale)
+        self.mouse.update_details("Gaming Mouse", 50)
+        report = self.manager.sales_report()
+        self.assertIn("Name: Mouse | Quantity: 2 | Unit price: 20.00", report)
+        self.assertNotIn("Gaming Mouse", report)
+        self.assertIn("Transaction total: 40.00", report)
+
+    def test_detailed_report_respects_filters(self):
+        store = SalesFactory.create_sale("in_store", 1, self.customer, self.staff)
+        store.add_item(self.mouse, 1)
+        self.manager.record_sale(store)
+        other_customer = Customer(2, "Sam")
+        online = SalesFactory.create_sale("online", 2, other_customer, self.staff)
+        online.add_item(self.keyboard, 2)
+        self.manager.record_sale(online)
+
+        report = self.manager.sales_report(date.today(), date.today(), "online")
+        self.assertIn("Customer: Sam (ID: 2)", report)
+        self.assertIn("Name: Keyboard", report)
+        self.assertNotIn("Customer: Jordan", report)
+        self.assertNotIn("Name: Mouse", report)
+        self.assertIn("Total transactions: 1", report)
+        self.assertIn("Total revenue: 60.00", report)
+
     def test_sales_report_filters(self):
         store = SalesFactory.create_sale("in_store", 1, self.customer, self.staff)
         store.add_item(self.mouse, 2)
